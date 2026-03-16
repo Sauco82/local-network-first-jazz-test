@@ -1,0 +1,7 @@
+node_modules
+.turbo
+dist
+dist-electron
+.DS_Store
+*.tsbuildinfo
+apps/web/.env

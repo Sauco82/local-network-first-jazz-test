@@ -1,0 +1,25 @@
+{
+  "name": "local-network-first-jazz",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.6.5",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "concurrently -k \"pnpm --filter @repo/web dev --host 127.0.0.1 --strictPort\" \"pnpm --filter @repo/desktop dev\"",
+    "dev:web": "pnpm --filter @repo/web dev",
+    "dev:desktop": "concurrently -k \"pnpm --filter @repo/web dev --host 127.0.0.1 --strictPort\" \"pnpm --filter @repo/desktop dev\"",
+    "lint": "turbo run typecheck",
+    "typecheck": "turbo run typecheck"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["electron", "esbuild"]
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "turbo": "^2.8.17",
+    "typescript": "^5.9.3",
+    "wait-on": "^9.0.4"
+  }
+}
