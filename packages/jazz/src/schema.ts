@@ -1,26 +1,29 @@
 import { co, z } from "jazz-tools";
 
-export const TodoItem = co.map({
-  title: z.string(),
-  done: z.boolean(),
-  createdAt: z.number(),
+export const GameData = co.map({
+  leftPlayer: co.account().optional(),
+  rightPlayer: co.account().optional(),
+  board: z.tuple([
+    z.tuple([z.number(), z.number(), z.number()]),
+    z.tuple([z.number(), z.number(), z.number()]),
+    z.tuple([z.number(), z.number(), z.number()]),
+  ]),
+  currentPlayer: z.enum(["left", "right"]),
+  gameState: z.enum(["waiting", "playing", "finished"]),
 });
 
-export const TodoCollection = co.list(TodoItem);
-
-export const LocalNotesRoot = co.map({
-  todos: TodoCollection,
+export const UserData = co.map({
+  userData: co
+    .map({
+      // Name of the user that represents the group of devices
+      name: z.string(),
+      devices: co.list(co.account()),
+      games: co.list(GameData),
+    })
+    .optional(),
 });
 
-export const LocalNotesAccount = co
-  .account({
-    root: LocalNotesRoot,
-    profile: co.profile(),
-  })
-  .withMigration((account) => {
-    if (!account.$jazz.has("root")) {
-      account.$jazz.set("root", {
-        todos: [],
-      });
-    }
-  });
+export const DeviceAccount = co.account({
+  root: UserData,
+  profile: co.profile(),
+});
