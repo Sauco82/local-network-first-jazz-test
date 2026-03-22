@@ -7,7 +7,8 @@ export {
   parseInviteLink,
 } from "jazz-tools";
 export type { AccountRole } from "cojson";
-export { useDeviceAccount } from "./hooks";
+export type { Loaded, MaybeLoaded } from "jazz-tools";
+export { useDeviceAccount, type DeviceAccountFromHook } from "./hooks";
 export { JazzAppProvider, resolveJazzApiKey } from "./provider";
 export {
   DeviceAccount,

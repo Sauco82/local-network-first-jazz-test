@@ -11,18 +11,14 @@ export function AppShell({
   subtitle: string;
 }>) {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-6 py-8 text-slate-100 md:px-10">
-      <header className="space-y-4">
-        <span className="inline-flex rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.32em] text-cyan-200">
+    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-4 px-4 py-5 text-slate-900 md:px-6">
+      <header className="space-y-1.5">
+        <span className="inline-flex rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
           {eyebrow}
         </span>
-        <div className="space-y-3">
-          <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white md:text-6xl">
-            {title}
-          </h1>
-          <p className="max-w-2xl text-base leading-7 text-slate-300 md:text-lg">
-            {subtitle}
-          </p>
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">{title}</h1>
+          <p className="max-w-2xl text-xs leading-relaxed text-slate-600 md:text-sm">{subtitle}</p>
         </div>
       </header>
       {children}
@@ -32,9 +28,7 @@ export function AppShell({
 
 export function Card({ children }: PropsWithChildren) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/50 p-6 shadow-2xl shadow-cyan-950/20 backdrop-blur">
-      {children}
-    </section>
+    <section className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm md:p-4">{children}</section>
   );
 }
 
@@ -44,13 +38,13 @@ export function Badge({
 }: PropsWithChildren<{ tone?: "default" | "success" | "warning" }>) {
   const toneClass =
     tone === "success"
-      ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
       : tone === "warning"
-        ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
-        : "border-white/15 bg-white/5 text-slate-200";
+        ? "border-amber-200 bg-amber-50 text-amber-900"
+        : "border-slate-200 bg-slate-50 text-slate-700";
 
   return (
-    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${toneClass}`}>
+    <span className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-medium ${toneClass}`}>
       {children}
     </span>
   );
@@ -60,7 +54,7 @@ export function Button(props: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center rounded-2xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 ${
+      className={`inline-flex items-center justify-center rounded-md bg-sky-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none ${
         props.className ?? ""
       }`}
     />
@@ -71,7 +65,7 @@ export function TextField(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400/60 ${
+      className={`w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30 ${
         props.className ?? ""
       }`}
     />

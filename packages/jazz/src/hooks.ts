@@ -19,3 +19,5 @@ export function useDeviceAccount() {
     },
   });
 }
+
+export type DeviceAccountFromHook = ReturnType<typeof useDeviceAccount>;
