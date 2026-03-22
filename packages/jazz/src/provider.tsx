@@ -1,6 +1,6 @@
 import type { PropsWithChildren } from "react";
 import { JazzReactProvider } from "jazz-tools/react";
-import { LocalNotesAccount } from "./schema";
+import { DeviceAccount } from "./schema";
 
 const FALLBACK_JAZZ_API_KEY = "demo@example.com";
 
@@ -19,7 +19,7 @@ export function JazzAppProvider({
         peer: `wss://cloud.jazz.tools/?key=${resolveJazzApiKey(apiKey)}`,
         when: "always",
       }}
-      AccountSchema={LocalNotesAccount}
+      AccountSchema={DeviceAccount}
     >
       {children}
     </JazzReactProvider>

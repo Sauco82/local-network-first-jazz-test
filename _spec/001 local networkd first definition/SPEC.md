@@ -18,3 +18,8 @@
 1. Create userData invitation link for other device to join with selectable role
 2. Use userData as own user data
 3. Add device account to user data
+
+# currently wrong
+
+No device name definition
+Creation of user data on user migration instead of on demand
