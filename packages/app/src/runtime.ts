@@ -4,6 +4,9 @@ export type AppRuntime = "web" | "desktop";
 
 export const INVITE_VALUE_HINT = "userData";
 
+/** Hash segment for `#/invite/game/…` links to a `GameData` co-value. */
+export const INVITE_GAME_HINT = "game";
+
 export const INVITE_ROLES: AccountRole[] = ["reader", "writer", "manager", "admin", "writeOnly"];
 
 export function defaultUserLabel(runtime: AppRuntime): string {

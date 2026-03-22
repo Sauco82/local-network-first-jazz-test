@@ -5,6 +5,7 @@ import { CreateSharedUserDataPrompt } from "./components/CreateSharedUserDataPro
 import { DeviceNameSection } from "./components/DeviceNameSection";
 import { DevicesListSection } from "./components/DevicesListSection";
 import { EnsureCurrentDeviceInSharedList } from "./components/EnsureCurrentDeviceInSharedList";
+import { GamesSection } from "./components/GamesSection";
 import { GroupNameSection } from "./components/GroupNameSection";
 import { InviteSection } from "./components/InviteSection";
 import { JazzConfigCard } from "./components/JazzConfigCard";
@@ -65,6 +66,7 @@ export function UserDevicesWorkspace({
                   <EnsureCurrentDeviceInSharedList shared={shared} />
                   <GroupNameSection key={shared.$jazz.id} shared={shared} runtime={runtime} />
                   <DevicesListSection account={account} shared={shared} />
+                  <GamesSection shared={shared} />
                 </>
               ) : null}
 

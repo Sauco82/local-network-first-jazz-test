@@ -4,7 +4,8 @@ function defaultDeviceProfileName(): string {
   if (typeof window === "undefined") {
     return "Device";
   }
-  const host = (window as { desktopShell?: { hostname?: string } }).desktopShell?.hostname;
+  const host = (window as { desktopShell?: { hostname?: string } }).desktopShell
+    ?.hostname;
   if (host) {
     return host;
   }
@@ -15,8 +16,8 @@ function defaultDeviceProfileName(): string {
 }
 
 export const GameData = co.map({
-  leftPlayer: co.account().optional(),
-  rightPlayer: co.account().optional(),
+  leftPlayer: co.group().optional(),
+  rightPlayer: co.group().optional(),
   board: z.tuple([
     z.tuple([z.number(), z.number(), z.number()]),
     z.tuple([z.number(), z.number(), z.number()]),
@@ -48,7 +49,7 @@ export const DeviceAccount = co
     root: UserData,
     profile: co.profile(),
   })
-  .withMigration(async (account) => {
+  .withMigration(async account => {
     if (!account.$jazz.has("root")) {
       const userDataRoot = UserData.create({}, { owner: account });
       account.$jazz.set("root", userDataRoot);
