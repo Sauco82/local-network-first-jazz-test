@@ -13,7 +13,11 @@ export function useDeviceAccount() {
       root: {
         userData: {
           devices: { $each: { profile: true } },
-          games: { $each: true },
+          // Shallow list only: deep `$each` forces resolving every GameData (and nested Group
+          // refs for left/right players) at account scope. A joiner can hold a game ref in
+          // `games` before they have read access to the full CoValue tree; shallow refs avoid
+          // authorization errors on the account subscription. Components load each game as needed.
+          games: true,
         },
       },
     },

@@ -4,7 +4,10 @@ export type AppRuntime = "web" | "desktop";
 
 export const INVITE_VALUE_HINT = "userData";
 
-/** Hash segment for `#/invite/game/…` links to a `GameData` co-value. */
+/**
+ * Legacy hash segment for `#/invite/game/…` URLs. Old links are redirected to `#/game/:id`;
+ * access is granted when the host adds the guest user group as a writer on the game ACL.
+ */
 export const INVITE_GAME_HINT = "game";
 
 export const INVITE_ROLES: AccountRole[] = ["reader", "writer", "manager", "admin", "writeOnly"];

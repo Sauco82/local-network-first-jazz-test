@@ -23,3 +23,7 @@
 
 No device name definition
 Creation of user data on user migration instead of on demand
+
+# Remove legacy
+
+# Redesign UI

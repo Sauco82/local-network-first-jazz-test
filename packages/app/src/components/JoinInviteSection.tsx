@@ -1,8 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Account,
   assertLoaded,
-  GameData,
   getLoadedOrUndefined,
   parseInviteLink,
   SharedUserData,
@@ -13,9 +13,25 @@ import { CompactDisclosure } from "./CompactDisclosure";
 import { initialJoinUrlFromLocation, INVITE_GAME_HINT, INVITE_VALUE_HINT } from "../runtime";
 
 export function JoinInviteSection({ account }: { account: DeviceAccountFromHook }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(() => initialJoinUrlFromLocation() !== "");
   const [joinUrl, setJoinUrl] = useState(initialJoinUrlFromLocation);
   const [joinMessage, setJoinMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const href = initialJoinUrlFromLocation();
+    if (!href) {
+      return;
+    }
+    const parsed = parseInviteLink(href);
+    if (parsed?.valueHint === INVITE_GAME_HINT) {
+      navigate(`/game/${parsed.valueID}`, { replace: true });
+      setJoinMessage(
+        "Opening the game. If you cannot load it, ask the host to add your user group under Accept join, using the join payload on the game page.",
+      );
+      setOpen(true);
+    }
+  }, [navigate]);
 
   const handleJoin = useCallback(async () => {
     setJoinMessage(null);
@@ -31,11 +47,15 @@ export function JoinInviteSection({ account }: { account: DeviceAccountFromHook 
       return;
     }
 
-    if (
-      parsed.valueHint !== undefined &&
-      parsed.valueHint !== INVITE_VALUE_HINT &&
-      parsed.valueHint !== INVITE_GAME_HINT
-    ) {
+    if (parsed.valueHint === INVITE_GAME_HINT) {
+      navigate(`/game/${parsed.valueID}`, { replace: true });
+      setJoinMessage(
+        "Game links no longer use writer invites. Use the share link from the host, then send them your join payload from the game page if needed.",
+      );
+      return;
+    }
+
+    if (parsed.valueHint !== undefined && parsed.valueHint !== INVITE_VALUE_HINT) {
       setJoinMessage("This invite type is not supported here.");
       return;
     }
@@ -48,61 +68,6 @@ export function JoinInviteSection({ account }: { account: DeviceAccountFromHook 
       assertLoaded(account);
 
       const me = Account.getMe();
-
-      if (parsed.valueHint === INVITE_GAME_HINT) {
-        const loadedGame = await me.acceptInvite(parsed.valueID, parsed.inviteSecret, GameData);
-        if (!loadedGame.$isLoaded) {
-          setJoinMessage("Could not load invited game.");
-          return;
-        }
-        assertLoaded(loadedGame);
-
-        const rootMap = getLoadedOrUndefined(account.root);
-        if (!rootMap) {
-          setJoinMessage("Account root not ready.");
-          return;
-        }
-        const sharedUser = getLoadedOrUndefined(rootMap.userData);
-        if (!sharedUser) {
-          setJoinMessage("Create or join shared user data first, then accept the game invite.");
-          return;
-        }
-        assertLoaded(sharedUser);
-        const ownerGroup = sharedUser.$jazz.owner;
-        if (!ownerGroup) {
-          setJoinMessage("Shared user data has no owner group.");
-          return;
-        }
-
-        const hasLeft = loadedGame.leftPlayer !== undefined && loadedGame.leftPlayer !== null;
-        const hasRight = loadedGame.rightPlayer !== undefined && loadedGame.rightPlayer !== null;
-        if (hasLeft && hasRight) {
-          setJoinMessage("This game already has both players.");
-          return;
-        }
-        if (!hasLeft) {
-          loadedGame.$jazz.set("leftPlayer", ownerGroup);
-        } else {
-          loadedGame.$jazz.set("rightPlayer", ownerGroup);
-        }
-
-        assertLoaded(sharedUser.games);
-        const alreadyListed = sharedUser.games
-          .slice()
-          .some((g) => g.$jazz.id === loadedGame.$jazz.id);
-        if (!alreadyListed) {
-          sharedUser.games.$jazz.push(loadedGame);
-        }
-
-        const leftAfter = loadedGame.leftPlayer !== undefined && loadedGame.leftPlayer !== null;
-        const rightAfter = loadedGame.rightPlayer !== undefined && loadedGame.rightPlayer !== null;
-        if (leftAfter && rightAfter) {
-          loadedGame.$jazz.set("gameState", "playing");
-        }
-
-        setJoinMessage("Joined the game. Your group is on the open side.");
-        return;
-      }
 
       const loadedRaw = await me.acceptInvite(parsed.valueID, parsed.inviteSecret, SharedUserData);
       if (!loadedRaw.$isLoaded) {
@@ -127,7 +92,7 @@ export function JoinInviteSection({ account }: { account: DeviceAccountFromHook 
     } catch (err) {
       setJoinMessage(err instanceof Error ? err.message : "Could not accept invite.");
     }
-  }, [account, joinUrl]);
+  }, [account, joinUrl, navigate]);
 
   const collapsedHint =
     joinUrl.trim().length > 0 ? "URL ready" : open ? undefined : "Expand to paste URL";
@@ -147,7 +112,7 @@ export function JoinInviteSection({ account }: { account: DeviceAccountFromHook 
         </p>
         <textarea
           className="w-full min-h-[72px] rounded-md border border-slate-200 bg-white px-2 py-1.5 font-mono text-[11px] text-slate-900 outline-none placeholder:text-slate-400 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30"
-          placeholder="https://…#/invite/userData/… or …/game/…"
+          placeholder="https://…#/invite/userData/…"
           value={joinUrl}
           onChange={(event) => setJoinUrl(event.target.value)}
         />
