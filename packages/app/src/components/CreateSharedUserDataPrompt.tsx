@@ -22,8 +22,6 @@ export function CreateSharedUserDataPrompt({
     }
     const me = Account.getMe();
     const group = Group.create({ owner: me });
-    // Lets the other player resolve this group when it is referenced as left/right in a game.
-    group.addMember("everyone", "reader");
     const sharedMap = SharedUserData.create(
       {
         name: defaultUserLabel(runtime),

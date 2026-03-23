@@ -4,6 +4,18 @@ import type { Loaded } from "@repo/jazz";
 type LoadedShared = Loaded<typeof SharedUserData>;
 
 /**
+ * CoValue id for a `co.group` slot on `GameData`, without requiring read access to the target Group.
+ */
+export function gamePlayerGroupRefId(
+  slot: Loaded<typeof GameData>["leftPlayer"] | Loaded<typeof GameData>["rightPlayer"],
+): string | undefined {
+  if (slot == null) {
+    return undefined;
+  }
+  return slot.$jazz.id;
+}
+
+/**
  * Guest has writer on the game but may not have listed it yet; claim the open seat
  * and add the game to this shared user's list (same as legacy invite accept flow).
  */

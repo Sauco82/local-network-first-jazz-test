@@ -13,7 +13,11 @@ import type { Loaded } from "@repo/jazz";
 import { AppShell, Badge, Button, Card } from "@repo/ui";
 import { CELL_LEFT, CELL_RIGHT, setBoardCell, type Board } from "../game/board";
 import { evaluateLineOutcome } from "../game/tictactoe";
-import { claimGuestSeatAndListIfNeeded, formatGameJoinPayload } from "../game/joinGuest";
+import {
+  claimGuestSeatAndListIfNeeded,
+  formatGameJoinPayload,
+  gamePlayerGroupRefId,
+} from "../game/joinGuest";
 import type { AppRuntime } from "../runtime";
 
 type LoadedShared = Loaded<typeof SharedUserData>;
@@ -22,19 +26,13 @@ function resolveMySide(
   ownerId: string,
   game: Loaded<typeof GameData>,
 ): "left" | "right" | null {
-  const lp = game.leftPlayer;
-  const rp = game.rightPlayer;
-  if (lp != null) {
-    assertLoaded(lp);
-    if (lp.$jazz.id === ownerId) {
-      return "left";
-    }
+  const leftId = gamePlayerGroupRefId(game.leftPlayer);
+  if (leftId === ownerId) {
+    return "left";
   }
-  if (rp != null) {
-    assertLoaded(rp);
-    if (rp.$jazz.id === ownerId) {
-      return "right";
-    }
+  const rightId = gamePlayerGroupRefId(game.rightPlayer);
+  if (rightId === ownerId) {
+    return "right";
   }
   return null;
 }
@@ -83,8 +81,8 @@ export function GamePage({ runtime }: { runtime: AppRuntime }) {
 
   const loadedGame = useCoState(GameData, shared && gameId ? gameId : undefined, {
     resolve: {
-      leftPlayer: true,
-      rightPlayer: true,
+      leftPlayer: false,
+      rightPlayer: false,
     },
   });
 
