@@ -4,11 +4,10 @@ import { App, detectRuntime } from "@repo/app";
 import "./index.css";
 
 const apiKey = import.meta.env.VITE_JAZZ_API_KEY;
-const hardcodedPeer = import.meta.env.VITE_JAZZ_HARDCODED_PEER;
 const runtime = detectRuntime();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App apiKey={apiKey} runtime={runtime} hardcodedPeer={hardcodedPeer} />
+    <App apiKey={apiKey} runtime={runtime} />
   </StrictMode>,
 );

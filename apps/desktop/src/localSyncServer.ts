@@ -8,9 +8,9 @@ const DEFAULT_LOCAL_SYNC_PORT = 4200;
 
 export type DesktopSyncStatus = {
   running: boolean;
-  host: string | null;
-  port: number | null;
-  peer: string | null;
+  host: string;
+  port: number;
+  peer: string;
   dbPath: string | null;
   error: string | null;
 };
@@ -26,6 +26,10 @@ function resolveLocalSyncPort(): number {
   return Number.isFinite(parsed) ? parsed : DEFAULT_LOCAL_SYNC_PORT;
 }
 
+function buildLocalSyncPeer(port: number): string {
+  return `ws://${DEFAULT_LOCAL_SYNC_HOST}:${port}`;
+}
+
 export class DesktopSyncService {
   private server: SyncServerInstance | null = null;
   private startPromise: Promise<DesktopSyncStatus> | null = null;
@@ -34,13 +38,12 @@ export class DesktopSyncService {
   getStatus(): DesktopSyncStatus {
     const port = resolveLocalSyncPort();
     const dbPath = path.join(app.getPath("userData"), "jazz-sync", "storage.db");
-    const host = this.server ? DEFAULT_LOCAL_SYNC_HOST : null;
 
     return {
       running: this.server !== null,
-      host,
-      port: this.server ? port : null,
-      peer: this.server ? `ws://${DEFAULT_LOCAL_SYNC_HOST}:${port}` : null,
+      host: DEFAULT_LOCAL_SYNC_HOST,
+      port,
+      peer: buildLocalSyncPeer(port),
       dbPath,
       error: this.error,
     };

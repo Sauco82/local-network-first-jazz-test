@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  buildLocalSyncPeer,
   buildSyncCandidates,
   canControlLocalSync as canControlLocalSyncCapability,
   resolveSyncPeerResult,
@@ -18,7 +19,6 @@ import {
 export type SyncSettingsState = {
   mode: SyncMode;
   setMode: (mode: SyncMode) => void;
-  hardcodedPeer?: string;
   desktopStatus: DesktopSyncStatus | null;
   actionPending: boolean;
   actionError: string | null;
@@ -31,6 +31,8 @@ export type SyncSettingsState = {
   startLocalSync: () => Promise<void>;
   stopLocalSync: () => Promise<void>;
 };
+
+const SYNC_REPROBE_INTERVAL_MS = 4000;
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected sync error.";
@@ -52,16 +54,10 @@ function buildInitialOptionStates(
       availability: candidates["local-desktop"].peer ? "checking" : "not-configured",
       note: candidates["local-desktop"].note,
     },
-    "hardcoded-lan": {
-      source: "hardcoded-lan",
-      peer: candidates["hardcoded-lan"].peer,
-      availability: candidates["hardcoded-lan"].peer ? "checking" : "not-configured",
-      note: candidates["hardcoded-lan"].note,
-    },
   };
 }
 
-async function probePeerAvailability(source: SyncTargetSource, peer: SyncCandidate["peer"]): Promise<SyncAvailability> {
+async function probePeerAvailability(peer: SyncCandidate["peer"]): Promise<SyncAvailability> {
   if (!peer) {
     return "not-configured";
   }
@@ -103,10 +99,8 @@ async function probePeerAvailability(source: SyncTargetSource, peer: SyncCandida
 
 export function useSyncSettings({
   apiKey,
-  hardcodedPeer,
 }: {
   apiKey?: string;
-  hardcodedPeer?: string;
 }): SyncSettingsState {
   const [mode, setStoredMode] = useState<SyncMode>(() => readStoredSyncMode());
   const [desktopStatus, setDesktopStatus] = useState<DesktopSyncStatus | null>(null);
@@ -114,6 +108,7 @@ export function useSyncSettings({
   const [actionError, setActionError] = useState<string | null>(null);
   const [syncWhen, setSyncWhen] = useState<"always" | "never">("never");
   const [isResolvingPeer, setIsResolvingPeer] = useState(true);
+  const [probeCycle, setProbeCycle] = useState(0);
 
   const canControlLocalSync = canControlLocalSyncCapability();
 
@@ -121,10 +116,9 @@ export function useSyncSettings({
     () =>
       buildSyncCandidates({
         apiKey,
-        hardcodedPeer,
-        desktopStatus,
+        localPeer: desktopStatus?.peer ?? buildLocalSyncPeer(),
       }),
-    [apiKey, hardcodedPeer, desktopStatus],
+    [apiKey, desktopStatus],
   );
 
   const [optionStates, setOptionStates] = useState<Record<SyncTargetSource, SyncOptionState>>(() =>
@@ -151,9 +145,36 @@ export function useSyncSettings({
     setStoredMode(nextMode);
   }, []);
 
+  const requestReprobe = useCallback(() => {
+    setProbeCycle((current) => current + 1);
+  }, []);
+
   useEffect(() => {
     writeStoredSyncMode(mode);
   }, [mode]);
+
+  useEffect(() => {
+    if (mode === "cloud") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      requestReprobe();
+    }, SYNC_REPROBE_INTERVAL_MS);
+
+    const handleWindowFocus = () => {
+      requestReprobe();
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    window.addEventListener("online", handleWindowFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleWindowFocus);
+      window.removeEventListener("online", handleWindowFocus);
+    };
+  }, [mode, requestReprobe]);
 
   const refreshDesktopStatus = useCallback(async () => {
     if (!canControlLocalSync || !window.desktopShell) {
@@ -251,21 +272,10 @@ export function useSyncSettings({
     let active = true;
     const nextOptionStates = buildInitialOptionStates(candidates);
 
-    setIsResolvingPeer(true);
-    setSyncWhen("never");
-    setOptionStates(nextOptionStates);
-    setResolvedPeer({
-      requestedMode: mode,
-      activeSource: "none",
-      peer: null,
-      detail: "Resolving sync peer availability…",
-      warning: null,
-    });
-
     void Promise.all(
       (Object.keys(candidates) as SyncTargetSource[]).map(async (source) => {
         const candidate = candidates[source];
-        const availability = await probePeerAvailability(source, candidate.peer);
+        const availability = await probePeerAvailability(candidate.peer);
         return {
           source,
           state: {
@@ -293,28 +303,39 @@ export function useSyncSettings({
         syncCandidateOrder(mode).find(
           (source) => resolvedOptionStates[source].availability === "available",
         ) ?? null;
+      const nextResolvedPeer = resolveSyncPeerResult({
+        mode,
+        selectedSource,
+        optionStates: resolvedOptionStates,
+      });
+      const nextSyncWhen = selectedSource ? "always" : "never";
+      const shouldApplyResolvedState =
+        isResolvingPeer ||
+        nextSyncWhen !== syncWhen ||
+        nextResolvedPeer.requestedMode !== resolvedPeer.requestedMode ||
+        nextResolvedPeer.activeSource !== resolvedPeer.activeSource ||
+        nextResolvedPeer.peer !== resolvedPeer.peer ||
+        nextResolvedPeer.detail !== resolvedPeer.detail ||
+        nextResolvedPeer.warning !== resolvedPeer.warning;
 
-      setOptionStates(resolvedOptionStates);
-      setResolvedPeer(
-        resolveSyncPeerResult({
-          mode,
-          selectedSource,
-          optionStates: resolvedOptionStates,
-        }),
-      );
-      setSyncWhen(selectedSource ? "always" : "never");
-      setIsResolvingPeer(false);
+      if (shouldApplyResolvedState) {
+        setOptionStates(resolvedOptionStates);
+        setResolvedPeer(nextResolvedPeer);
+        setSyncWhen(nextSyncWhen);
+      }
+      if (isResolvingPeer) {
+        setIsResolvingPeer(false);
+      }
     });
 
     return () => {
       active = false;
     };
-  }, [candidates, mode]);
+  }, [candidates, isResolvingPeer, mode, probeCycle, resolvedPeer, syncWhen]);
 
   return {
     mode,
     setMode,
-    hardcodedPeer,
     desktopStatus,
     actionPending,
     actionError,

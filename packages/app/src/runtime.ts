@@ -2,15 +2,16 @@ import { resolveJazzPeer } from "@repo/jazz";
 import type { AccountRole } from "@repo/jazz";
 
 export type AppRuntime = "web" | "desktop";
-export type SyncMode = "auto" | "cloud" | "local-desktop" | "hardcoded-lan";
-export type SyncTargetSource = "cloud" | "local-desktop" | "hardcoded-lan";
+export type SyncMode = "auto" | "cloud" | "local-desktop";
+export type SyncTargetSource = "cloud" | "local-desktop";
 export type SyncAvailability = "checking" | "available" | "unavailable" | "not-configured";
+export type SyncPeer = `ws://${string}` | `wss://${string}`;
 
 export type DesktopSyncStatus = {
   running: boolean;
-  host: string | null;
-  port: number | null;
-  peer: string | null;
+  host: string;
+  port: number;
+  peer: SyncPeer;
   dbPath: string | null;
   error: string | null;
 };
@@ -25,14 +26,14 @@ export type ResolvedSyncPeer = {
 
 export type SyncOptionState = {
   source: SyncTargetSource;
-  peer: string | null;
+  peer: SyncPeer | null;
   availability: SyncAvailability;
   note: string | null;
 };
 
 export type SyncCandidate = {
   source: SyncTargetSource;
-  peer: `ws://${string}` | `wss://${string}` | null;
+  peer: SyncPeer | null;
   note: string | null;
 };
 
@@ -54,6 +55,8 @@ declare global {
 export const INVITE_VALUE_HINT = "userData";
 export const DEFAULT_SYNC_MODE: SyncMode = "auto";
 export const SYNC_MODE_STORAGE_KEY = "jazz-sync-mode";
+export const DEFAULT_LOCAL_SYNC_HOST = "127.0.0.1";
+export const DEFAULT_LOCAL_SYNC_PORT = 4200;
 
 /**
  * Legacy hash segment for `#/invite/game/…` URLs. Old links are redirected to `#/game/:id`;
@@ -66,7 +69,6 @@ export const SYNC_MODE_OPTIONS: { value: SyncMode; label: string }[] = [
   { value: "auto", label: "Auto" },
   { value: "cloud", label: "Cloud" },
   { value: "local-desktop", label: "Local desktop" },
-  { value: "hardcoded-lan", label: "Hardcoded LAN" },
 ];
 
 export function hasDesktopShell(): boolean {
@@ -91,10 +93,17 @@ export function syncTargetLabel(source: SyncTargetSource): string {
   if (source === "local-desktop") {
     return "Local desktop";
   }
-  if (source === "hardcoded-lan") {
-    return "Hardcoded LAN";
-  }
   return "Cloud";
+}
+
+export function buildLocalSyncPeer({
+  host = DEFAULT_LOCAL_SYNC_HOST,
+  port = DEFAULT_LOCAL_SYNC_PORT,
+}: {
+  host?: string;
+  port?: number;
+} = {}): SyncPeer {
+  return `ws://${host}:${port}` as SyncPeer;
 }
 
 export function isSyncMode(value: string): value is SyncMode {
@@ -118,21 +127,12 @@ export function writeStoredSyncMode(mode: SyncMode) {
 
 export function buildSyncCandidates({
   apiKey,
-  hardcodedPeer,
-  desktopStatus,
+  localPeer,
 }: {
   apiKey?: string;
-  hardcodedPeer?: string;
-  desktopStatus?: DesktopSyncStatus | null;
+  localPeer: SyncPeer | null;
 }): Record<SyncTargetSource, SyncCandidate> {
   const cloudPeer = resolveJazzPeer({ apiKey });
-  const localDesktopPeer =
-    desktopStatus?.running && desktopStatus.peer?.trim()
-      ? (desktopStatus.peer.trim() as `ws://${string}` | `wss://${string}`)
-      : null;
-  const lanPeer = hardcodedPeer?.trim()
-    ? (hardcodedPeer.trim() as `ws://${string}` | `wss://${string}`)
-    : null;
 
   return {
     cloud: {
@@ -142,15 +142,8 @@ export function buildSyncCandidates({
     },
     "local-desktop": {
       source: "local-desktop",
-      peer: localDesktopPeer,
-      note: desktopStatus?.running
-        ? null
-        : desktopStatus?.error ?? "Start the local desktop sync server.",
-    },
-    "hardcoded-lan": {
-      source: "hardcoded-lan",
-      peer: lanPeer,
-      note: lanPeer ? null : "Set VITE_JAZZ_HARDCODED_PEER to enable this option.",
+      peer: localPeer,
+      note: null,
     },
   };
 }
@@ -159,10 +152,7 @@ export function syncCandidateOrder(mode: SyncMode): SyncTargetSource[] {
   if (mode === "cloud") {
     return ["cloud"];
   }
-  if (mode === "hardcoded-lan") {
-    return ["hardcoded-lan", "local-desktop", "cloud"];
-  }
-  return ["local-desktop", "hardcoded-lan", "cloud"];
+  return ["local-desktop", "cloud"];
 }
 
 export function buildSyncModeOptionLabel(

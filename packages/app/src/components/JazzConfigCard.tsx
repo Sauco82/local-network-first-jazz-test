@@ -22,12 +22,12 @@ export function JazzConfigCard({
 
   const localAvailabilityText =
     localDesktopOption.availability === "available"
-      ? "Sync endpoint reachable"
+      ? "Preferred local peer reachable"
       : localDesktopOption.availability === "checking"
-        ? "Checking endpoint availability…"
+        ? "Checking preferred local peer…"
         : localDesktopOption.availability === "unavailable"
-          ? "Sync endpoint unavailable"
-          : "Sync endpoint not configured";
+          ? "Preferred local peer unavailable"
+          : "Preferred local peer not configured";
 
   return (
     <Card>
@@ -69,21 +69,27 @@ export function JazzConfigCard({
                 : syncTargetLabel(syncState.resolvedPeer.activeSource)}
             </span>
           </p>
+          <p className="text-slate-500">
+            Preferred local peer:{" "}
+            <span className="break-all font-mono text-[10px] text-slate-700">
+              {localDesktopOption.peer ?? "not configured"}
+            </span>
+          </p>
           <p>{syncState.resolvedPeer.detail}</p>
           {syncState.resolvedPeer.warning ? (
             <p className="text-amber-800">{syncState.resolvedPeer.warning}</p>
           ) : null}
           {syncState.isResolvingPeer ? <p className="text-slate-500">Checking sync peer availability…</p> : null}
-          <p className="text-slate-500">
-            Hardcoded LAN peer:{" "}
-            <span className="font-mono text-[10px] text-slate-700">
-              {syncState.hardcodedPeer?.trim() || "not configured"}
-            </span>
-          </p>
+          {!syncState.canControlLocalSync ? (
+            <p className="text-slate-500">
+              This runtime can probe the local desktop peer, but only the desktop app can start or stop the
+              server.
+            </p>
+          ) : null}
         </div>
         {syncState.canControlLocalSync ? (
           <div className="grid gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Local desktop sync</p>
+            <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Local desktop control</p>
             <p>{localStatusText}</p>
             <p>{localAvailabilityText}</p>
             {localDesktopOption.note ? <p className="text-slate-500">{localDesktopOption.note}</p> : null}

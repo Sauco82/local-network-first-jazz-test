@@ -8,13 +8,11 @@ import { useSyncSettings } from "./useSyncSettings";
 export function App({
   apiKey,
   runtime,
-  hardcodedPeer,
 }: {
   apiKey?: string;
   runtime: AppRuntime;
-  hardcodedPeer?: string;
 }) {
-  const syncState = useSyncSettings({ apiKey, hardcodedPeer });
+  const syncState = useSyncSettings({ apiKey });
   const providerKey = syncState.resolvedPeer.peer ?? "none";
   const isJazzReady =
     syncState.syncWhen === "always" &&
