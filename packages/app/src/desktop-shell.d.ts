@@ -1,3 +1,5 @@
+import type { DesktopSyncStatus } from "./runtime";
+
 export {};
 
 declare global {
@@ -5,6 +7,12 @@ declare global {
     desktopShell?: {
       platform: string;
       hostname: string;
+      sync: {
+        getStatus(): Promise<DesktopSyncStatus>;
+        startLocalServer(): Promise<DesktopSyncStatus>;
+        stopLocalServer(): Promise<DesktopSyncStatus>;
+        onStatusChange(listener: (status: DesktopSyncStatus) => void): () => void;
+      };
     };
   }
 }

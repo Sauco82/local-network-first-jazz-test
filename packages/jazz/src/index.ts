@@ -13,7 +13,7 @@ export { CoValueLoadingState } from "jazz-tools";
 export type { Loaded, MaybeLoaded } from "jazz-tools";
 export { useDeviceAccount, type DeviceAccountFromHook } from "./hooks";
 export { useCoState } from "jazz-tools/react";
-export { JazzAppProvider, resolveJazzApiKey } from "./provider";
+export { JazzAppProvider, resolveJazzApiKey, resolveJazzPeer } from "./provider";
 export {
   DeviceAccount,
   GameData,

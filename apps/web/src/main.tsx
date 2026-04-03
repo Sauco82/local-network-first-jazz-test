@@ -1,15 +1,14 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "@repo/app";
+import { App, detectRuntime } from "@repo/app";
 import "./index.css";
 
 const apiKey = import.meta.env.VITE_JAZZ_API_KEY;
-const runtime = navigator.userAgent.toLowerCase().includes("electron")
-  ? "desktop"
-  : "web";
+const hardcodedPeer = import.meta.env.VITE_JAZZ_HARDCODED_PEER;
+const runtime = detectRuntime();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App apiKey={apiKey} runtime={runtime} />
+    <App apiKey={apiKey} runtime={runtime} hardcodedPeer={hardcodedPeer} />
   </StrictMode>,
 );

@@ -9,15 +9,31 @@ export function resolveJazzApiKey(apiKey?: string) {
   return trimmed && trimmed.length > 0 ? trimmed : FALLBACK_JAZZ_API_KEY;
 }
 
+export function resolveJazzPeer({
+  apiKey,
+  peer,
+}: {
+  apiKey?: string;
+  peer?: string;
+}): `ws://${string}` | `wss://${string}` {
+  const trimmedPeer = peer?.trim();
+  if (trimmedPeer) {
+    return trimmedPeer as `ws://${string}` | `wss://${string}`;
+  }
+  return `wss://cloud.jazz.tools/?key=${resolveJazzApiKey(apiKey)}`;
+}
+
 export function JazzAppProvider({
   apiKey,
+  peer,
+  syncWhen = "always",
   children,
-}: PropsWithChildren<{ apiKey?: string }>) {
+}: PropsWithChildren<{ apiKey?: string; peer?: string; syncWhen?: "always" | "never" }>) {
   return (
     <JazzReactProvider
       sync={{
-        peer: `wss://cloud.jazz.tools/?key=${resolveJazzApiKey(apiKey)}`,
-        when: "always",
+        peer: resolveJazzPeer({ apiKey, peer }),
+        when: syncWhen,
       }}
       AccountSchema={DeviceAccount}
     >

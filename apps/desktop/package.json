@@ -7,12 +7,17 @@
     "build": "tsup",
     "build:watch": "tsup --watch",
     "dev": "concurrently -k \"pnpm run build:watch\" \"pnpm run start:dev\"",
+    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
     "start": "electron .",
     "start:dev": "wait-on file:dist/main.js tcp:127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "electron": "^41.0.2",
     "tsup": "^8.5.1"
+  },
+  "dependencies": {
+    "jazz-run": "^0.20.16"
   }
 }
