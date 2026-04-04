@@ -5,6 +5,7 @@ export type AppRuntime = "web" | "desktop";
 export type SyncPeer = `ws://${string}` | `wss://${string}`;
 export type SyncAvailability = "checking" | "available" | "unavailable" | "not-configured";
 export type SyncTargetSource = "cloud" | "desktop-loopback" | "desktop-advertised" | "stored-peer";
+export type ParentSyncStatus = "stopped" | "connecting" | "connected" | "reconnecting" | "error";
 
 export type DesktopAdvertisedPeer = {
   id: string;
@@ -24,6 +25,10 @@ export type DesktopSyncStatus = {
   advertisedPeers: DesktopAdvertisedPeer[];
   dbPath: string | null;
   error: string | null;
+  parentPeer: SyncPeer | null;
+  parentStatus: ParentSyncStatus;
+  parentConnected: boolean;
+  parentError: string | null;
 };
 
 export type StoredSyncPeer = {

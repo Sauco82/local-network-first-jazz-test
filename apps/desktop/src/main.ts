@@ -11,6 +11,9 @@ const DESKTOP_SYNC_STOP_CHANNEL = "desktop-sync:stop";
 const DESKTOP_SYNC_SET_HOSTNAMES_CHANNEL = "desktop-sync:set-advertised-hostnames";
 
 const desktopSync = new DesktopSyncService();
+desktopSync.onStatusChange(() => {
+  broadcastDesktopSyncStatus();
+});
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -51,20 +54,10 @@ function registerDesktopSyncIpc() {
     event.returnValue = os.hostname();
   });
   ipcMain.handle(DESKTOP_SYNC_GET_STATUS_CHANNEL, () => desktopSync.getStatus());
-  ipcMain.handle(DESKTOP_SYNC_START_CHANNEL, async () => {
-    const status = await desktopSync.start();
-    broadcastDesktopSyncStatus();
-    return status;
-  });
-  ipcMain.handle(DESKTOP_SYNC_STOP_CHANNEL, async () => {
-    const status = await desktopSync.stop();
-    broadcastDesktopSyncStatus();
-    return status;
-  });
+  ipcMain.handle(DESKTOP_SYNC_START_CHANNEL, async () => desktopSync.start());
+  ipcMain.handle(DESKTOP_SYNC_STOP_CHANNEL, async () => desktopSync.stop());
   ipcMain.handle(DESKTOP_SYNC_SET_HOSTNAMES_CHANNEL, (_event, hostnames: string[]) => {
-    const status = desktopSync.updateAdvertisedHostnames(hostnames);
-    broadcastDesktopSyncStatus();
-    return status;
+    return desktopSync.updateAdvertisedHostnames(hostnames);
   });
 }
 
