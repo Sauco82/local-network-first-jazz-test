@@ -37,7 +37,7 @@ function UserDevicesWorkspaceLayout({
     <AppShell
       eyebrow="Local-first user"
       title="Shared user data across your devices."
-      subtitle="Create or join a Jazz group, link devices, and invite others. Sync can switch between cloud and a preferred desktop-hosted local peer."
+      subtitle="Create or join a Jazz group, link devices, and invite others. Sync uses an explicitly selected cloud or saved peer URL."
     >
       <section className="grid gap-3 md:grid-cols-[1fr_minmax(200px,280px)]">
         <Card>
@@ -145,8 +145,8 @@ export function UserDevicesWorkspaceLoading({
         <div className="grid gap-3">
           <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-3 text-[11px] text-slate-600">
             {syncState.isResolvingPeer
-              ? "Resolving sync target before mounting Jazz…"
-              : "Waiting for a reachable cloud or local desktop sync target before mounting Jazz…"}
+              ? "Resolving the selected sync target before mounting Jazz…"
+              : "Waiting for the selected sync target to become reachable before mounting Jazz…"}
           </div>
           <div className="min-h-40 rounded-md border border-dashed border-slate-200 bg-white/70 px-2.5 py-3 text-[11px] text-slate-500">
             {detail}

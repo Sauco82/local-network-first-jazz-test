@@ -2,39 +2,55 @@ import { resolveJazzPeer } from "@repo/jazz";
 import type { AccountRole } from "@repo/jazz";
 
 export type AppRuntime = "web" | "desktop";
-export type SyncMode = "auto" | "cloud" | "local-desktop";
-export type SyncTargetSource = "cloud" | "local-desktop";
-export type SyncAvailability = "checking" | "available" | "unavailable" | "not-configured";
 export type SyncPeer = `ws://${string}` | `wss://${string}`;
+export type SyncAvailability = "checking" | "available" | "unavailable" | "not-configured";
+export type SyncTargetSource = "cloud" | "desktop-loopback" | "desktop-advertised" | "stored-peer";
+
+export type DesktopAdvertisedPeer = {
+  id: string;
+  label: string;
+  hostname: string;
+  peer: SyncPeer;
+  note: string | null;
+};
 
 export type DesktopSyncStatus = {
   running: boolean;
   host: string;
   port: number;
   peer: SyncPeer;
+  loopbackPeer: SyncPeer;
+  advertisedHostnames: string[];
+  advertisedPeers: DesktopAdvertisedPeer[];
   dbPath: string | null;
   error: string | null;
 };
 
+export type StoredSyncPeer = {
+  id: string;
+  label: string | null;
+  peer: SyncPeer;
+};
+
+export type SyncTarget = {
+  id: string;
+  source: SyncTargetSource;
+  label: string;
+  peer: SyncPeer | null;
+  note: string | null;
+  removable: boolean;
+};
+
 export type ResolvedSyncPeer = {
-  requestedMode: SyncMode;
+  selectedTargetId: string;
   activeSource: SyncTargetSource | "none";
   peer: string | null;
   detail: string;
   warning: string | null;
 };
 
-export type SyncOptionState = {
-  source: SyncTargetSource;
-  peer: SyncPeer | null;
+export type SyncOptionState = SyncTarget & {
   availability: SyncAvailability;
-  note: string | null;
-};
-
-export type SyncCandidate = {
-  source: SyncTargetSource;
-  peer: SyncPeer | null;
-  note: string | null;
 };
 
 declare global {
@@ -46,6 +62,7 @@ declare global {
         getStatus(): Promise<DesktopSyncStatus>;
         startLocalServer(): Promise<DesktopSyncStatus>;
         stopLocalServer(): Promise<DesktopSyncStatus>;
+        setAdvertisedHostnames(hostnames: string[]): Promise<DesktopSyncStatus>;
         onStatusChange(listener: (status: DesktopSyncStatus) => void): () => void;
       };
     };
@@ -53,8 +70,9 @@ declare global {
 }
 
 export const INVITE_VALUE_HINT = "userData";
-export const DEFAULT_SYNC_MODE: SyncMode = "auto";
-export const SYNC_MODE_STORAGE_KEY = "jazz-sync-mode";
+export const DEFAULT_SELECTED_SYNC_TARGET_ID = "cloud";
+export const SELECTED_SYNC_TARGET_STORAGE_KEY = "jazz-selected-sync-target";
+export const STORED_SYNC_PEERS_STORAGE_KEY = "jazz-stored-sync-peers";
 export const DEFAULT_LOCAL_SYNC_HOST = "127.0.0.1";
 export const DEFAULT_LOCAL_SYNC_PORT = 4200;
 
@@ -65,11 +83,6 @@ export const DEFAULT_LOCAL_SYNC_PORT = 4200;
 export const INVITE_GAME_HINT = "game";
 
 export const INVITE_ROLES: AccountRole[] = ["reader", "writer", "manager", "admin", "writeOnly"];
-export const SYNC_MODE_OPTIONS: { value: SyncMode; label: string }[] = [
-  { value: "auto", label: "Auto" },
-  { value: "cloud", label: "Cloud" },
-  { value: "local-desktop", label: "Local desktop" },
-];
 
 export function hasDesktopShell(): boolean {
   return typeof window !== "undefined" && window.desktopShell !== undefined;
@@ -90,8 +103,14 @@ export function detectRuntime(): AppRuntime {
 }
 
 export function syncTargetLabel(source: SyncTargetSource): string {
-  if (source === "local-desktop") {
-    return "Local desktop";
+  if (source === "desktop-loopback") {
+    return "This desktop";
+  }
+  if (source === "desktop-advertised") {
+    return "Desktop .local URL";
+  }
+  if (source === "stored-peer") {
+    return "Saved peer";
   }
   return "Cloud";
 }
@@ -106,119 +125,240 @@ export function buildLocalSyncPeer({
   return `ws://${host}:${port}` as SyncPeer;
 }
 
-export function isSyncMode(value: string): value is SyncMode {
-  return SYNC_MODE_OPTIONS.some((option) => option.value === value);
-}
-
-export function readStoredSyncMode(): SyncMode {
-  if (typeof window === "undefined") {
-    return DEFAULT_SYNC_MODE;
+function buildPeerId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
   }
-  const value = window.localStorage.getItem(SYNC_MODE_STORAGE_KEY);
-  return value && isSyncMode(value) ? value : DEFAULT_SYNC_MODE;
+  return `peer-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export function writeStoredSyncMode(mode: SyncMode) {
+export function normalizeSyncPeer(value: string): SyncPeer | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "ws:" && parsed.protocol !== "wss:") {
+      return null;
+    }
+    return parsed.toString().replace(/\/$/u, "") as SyncPeer;
+  } catch {
+    return null;
+  }
+}
+
+export function createStoredSyncPeer(peer: string, label?: string | null): StoredSyncPeer | null {
+  const normalizedPeer = normalizeSyncPeer(peer);
+  if (!normalizedPeer) {
+    return null;
+  }
+
+  const trimmedLabel = label?.trim() ?? "";
+
+  return {
+    id: buildPeerId(),
+    label: trimmedLabel.length > 0 ? trimmedLabel : null,
+    peer: normalizedPeer,
+  };
+}
+
+export function readSelectedSyncTargetId(): string {
+  if (typeof window === "undefined") {
+    return DEFAULT_SELECTED_SYNC_TARGET_ID;
+  }
+  return window.localStorage.getItem(SELECTED_SYNC_TARGET_STORAGE_KEY) ?? DEFAULT_SELECTED_SYNC_TARGET_ID;
+}
+
+export function writeSelectedSyncTargetId(targetId: string) {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(SYNC_MODE_STORAGE_KEY, mode);
+  window.localStorage.setItem(SELECTED_SYNC_TARGET_STORAGE_KEY, targetId);
 }
 
-export function buildSyncCandidates({
+export function readStoredSyncPeers(): StoredSyncPeer[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(STORED_SYNC_PEERS_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.flatMap((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return [];
+      }
+
+      const peer = normalizeSyncPeer(String((entry as { peer?: unknown }).peer ?? ""));
+      if (!peer) {
+        return [];
+      }
+
+      const id = String((entry as { id?: unknown }).id ?? buildPeerId());
+      const label = (entry as { label?: unknown }).label;
+
+      return [
+        {
+          id,
+          label: typeof label === "string" && label.trim().length > 0 ? label.trim() : null,
+          peer,
+        } satisfies StoredSyncPeer,
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function writeStoredSyncPeers(peers: StoredSyncPeer[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(STORED_SYNC_PEERS_STORAGE_KEY, JSON.stringify(peers));
+}
+
+export function storedSyncPeerLabel(peer: StoredSyncPeer): string {
+  return peer.label?.trim() || peer.peer;
+}
+
+export function buildSyncTargets({
   apiKey,
-  localPeer,
+  desktopStatus,
+  storedPeers,
 }: {
   apiKey?: string;
-  localPeer: SyncPeer | null;
-}): Record<SyncTargetSource, SyncCandidate> {
+  desktopStatus: DesktopSyncStatus | null;
+  storedPeers: StoredSyncPeer[];
+}): SyncTarget[] {
   const cloudPeer = resolveJazzPeer({ apiKey });
 
-  return {
-    cloud: {
+  const targets: SyncTarget[] = [
+    {
+      id: DEFAULT_SELECTED_SYNC_TARGET_ID,
       source: "cloud",
+      label: "Cloud",
       peer: cloudPeer,
       note: null,
+      removable: false,
     },
-    "local-desktop": {
-      source: "local-desktop",
-      peer: localPeer,
+  ];
+  const seenPeers = new Set<string>([cloudPeer]);
+
+  if (desktopStatus) {
+    targets.push({
+      id: "desktop-loopback",
+      source: "desktop-loopback",
+      label: "This desktop (loopback)",
+      peer: desktopStatus.loopbackPeer,
+      note: desktopStatus.running
+        ? "Connect locally to the sync server hosted by this desktop app."
+        : "Start local sync to use the loopback peer.",
+      removable: false,
+    });
+    seenPeers.add(desktopStatus.loopbackPeer);
+
+    for (const peer of desktopStatus.advertisedPeers) {
+      if (seenPeers.has(peer.peer)) {
+        continue;
+      }
+
+      targets.push({
+        id: peer.id,
+        source: "desktop-advertised",
+        label: peer.label,
+        peer: peer.peer,
+        note: peer.note,
+        removable: false,
+      });
+      seenPeers.add(peer.peer);
+    }
+  }
+
+  for (const storedPeer of storedPeers) {
+    if (seenPeers.has(storedPeer.peer)) {
+      continue;
+    }
+
+    targets.push({
+      id: storedPeer.id,
+      source: "stored-peer",
+      label: storedSyncPeerLabel(storedPeer),
+      peer: storedPeer.peer,
       note: null,
-    },
-  };
-}
+      removable: true,
+    });
+    seenPeers.add(storedPeer.peer);
+  }
 
-export function syncCandidateOrder(mode: SyncMode): SyncTargetSource[] {
-  if (mode === "cloud") {
-    return ["cloud"];
-  }
-  return ["local-desktop", "cloud"];
-}
-
-export function buildSyncModeOptionLabel(
-  mode: SyncMode,
-  optionStates: Partial<Record<SyncTargetSource, SyncOptionState>>,
-): string {
-  const base = SYNC_MODE_OPTIONS.find((option) => option.value === mode)?.label ?? mode;
-  if (mode === "auto") {
-    return base;
-  }
-  const state = optionStates[mode];
-  if (!state) {
-    return `${base} (checking)`;
-  }
-  if (state.availability === "available") {
-    return `${base} (available)`;
-  }
-  if (state.availability === "not-configured") {
-    return `${base} (not configured)`;
-  }
-  if (state.availability === "checking") {
-    return `${base} (checking)`;
-  }
-  return `${base} (unavailable)`;
+  return targets;
 }
 
 export function resolveSyncPeerResult({
-  mode,
-  selectedSource,
-  optionStates,
+  selectedTargetId,
+  optionStatesById,
 }: {
-  mode: SyncMode;
-  selectedSource: SyncTargetSource | null;
-  optionStates: Record<SyncTargetSource, SyncOptionState>;
+  selectedTargetId: string;
+  optionStatesById: Record<string, SyncOptionState>;
 }): ResolvedSyncPeer {
-  if (!selectedSource) {
+  const selected = optionStatesById[selectedTargetId];
+  if (!selected) {
     return {
-      requestedMode: mode,
+      selectedTargetId,
       activeSource: "none",
       peer: null,
-      detail: "No reachable sync peer. Running local-only until one becomes available.",
-      warning: "Could not connect to any configured sync server.",
+      detail: "Select a sync target to mount Jazz.",
+      warning: "The selected sync target is no longer configured.",
     };
   }
 
-  const selected = optionStates[selectedSource];
-  const desiredSource = mode === "auto" ? selectedSource : mode;
-  const desiredLabel = syncTargetLabel(desiredSource);
-  const selectedLabel = syncTargetLabel(selectedSource);
-  const warning =
-    mode !== "auto" && desiredSource !== selectedSource
-      ? `Requested ${desiredLabel}, connected to ${selectedLabel} instead.`
-      : null;
+  if (selected.availability !== "available") {
+    const reason =
+      selected.availability === "checking"
+        ? `Checking ${selected.label}…`
+        : selected.availability === "not-configured"
+          ? `${selected.label} is not configured.`
+          : `${selected.label} is unavailable.`;
+
+    return {
+      selectedTargetId,
+      activeSource: "none",
+      peer: null,
+      detail: reason,
+      warning: "Switch targets or fix the selected peer URL to continue.",
+    };
+  }
 
   return {
-    requestedMode: mode,
-    activeSource: selectedSource,
+    selectedTargetId,
+    activeSource: selected.source,
     peer: selected.peer,
-    detail:
-      mode === "auto"
-        ? `Auto connected to ${selectedLabel}.`
-        : warning
-          ? warning
-          : `Connected to ${selectedLabel}.`,
-    warning,
+    detail: `Connected to ${selected.label}.`,
+    warning: null,
   };
+}
+
+export function buildSyncTargetOptionLabel(option: SyncOptionState): string {
+  if (option.availability === "available") {
+    return `${option.label} (available)`;
+  }
+  if (option.availability === "not-configured") {
+    return `${option.label} (not configured)`;
+  }
+  if (option.availability === "checking") {
+    return `${option.label} (checking)`;
+  }
+  return `${option.label} (unavailable)`;
 }
 
 export function defaultUserLabel(runtime: AppRuntime): string {

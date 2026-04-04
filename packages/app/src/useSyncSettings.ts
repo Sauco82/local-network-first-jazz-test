@@ -1,32 +1,38 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  buildLocalSyncPeer,
-  buildSyncCandidates,
+  DEFAULT_SELECTED_SYNC_TARGET_ID,
+  buildSyncTargets,
   canControlLocalSync as canControlLocalSyncCapability,
+  createStoredSyncPeer,
+  readSelectedSyncTargetId,
+  readStoredSyncPeers,
   resolveSyncPeerResult,
-  readStoredSyncMode,
-  syncCandidateOrder,
-  type SyncAvailability,
-  type SyncCandidate,
-  writeStoredSyncMode,
   type DesktopSyncStatus,
   type ResolvedSyncPeer,
+  type StoredSyncPeer,
+  type SyncAvailability,
   type SyncOptionState,
-  type SyncMode,
-  type SyncTargetSource,
+  type SyncPeer,
+  type SyncTarget,
+  writeSelectedSyncTargetId,
+  writeStoredSyncPeers,
 } from "./runtime";
 
 export type SyncSettingsState = {
-  mode: SyncMode;
-  setMode: (mode: SyncMode) => void;
+  selectedTargetId: string;
+  setSelectedTargetId: (targetId: string) => void;
   desktopStatus: DesktopSyncStatus | null;
   actionPending: boolean;
   actionError: string | null;
   canControlLocalSync: boolean;
   syncWhen: "always" | "never";
   isResolvingPeer: boolean;
-  optionStates: Record<SyncTargetSource, SyncOptionState>;
+  optionStates: SyncOptionState[];
   resolvedPeer: ResolvedSyncPeer;
+  storedPeers: StoredSyncPeer[];
+  addStoredPeer: (peer: string, label?: string | null) => boolean;
+  removeStoredPeer: (peerId: string) => void;
+  setDesktopAdvertisedHostnames: (hostnames: string[]) => Promise<void>;
   refreshDesktopStatus: () => Promise<void>;
   startLocalSync: () => Promise<void>;
   stopLocalSync: () => Promise<void>;
@@ -38,26 +44,14 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected sync error.";
 }
 
-function buildInitialOptionStates(
-  candidates: Record<SyncTargetSource, SyncCandidate>,
-): Record<SyncTargetSource, SyncOptionState> {
-  return {
-    cloud: {
-      source: "cloud",
-      peer: candidates.cloud.peer,
-      availability: "checking",
-      note: null,
-    },
-    "local-desktop": {
-      source: "local-desktop",
-      peer: candidates["local-desktop"].peer,
-      availability: candidates["local-desktop"].peer ? "checking" : "not-configured",
-      note: candidates["local-desktop"].note,
-    },
-  };
+function buildInitialOptionStates(targets: SyncTarget[]): SyncOptionState[] {
+  return targets.map((target) => ({
+    ...target,
+    availability: target.peer ? "checking" : "not-configured",
+  }));
 }
 
-async function probePeerAvailability(peer: SyncCandidate["peer"]): Promise<SyncAvailability> {
+async function probePeerAvailability(peer: SyncPeer | null): Promise<SyncAvailability> {
   if (!peer) {
     return "not-configured";
   }
@@ -102,8 +96,9 @@ export function useSyncSettings({
 }: {
   apiKey?: string;
 }): SyncSettingsState {
-  const [mode, setStoredMode] = useState<SyncMode>(() => readStoredSyncMode());
+  const [selectedTargetId, setStoredSelectedTargetId] = useState<string>(() => readSelectedSyncTargetId());
   const [desktopStatus, setDesktopStatus] = useState<DesktopSyncStatus | null>(null);
+  const [storedPeers, setStoredPeers] = useState<StoredSyncPeer[]>(() => readStoredSyncPeers());
   const [actionPending, setActionPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [syncWhen, setSyncWhen] = useState<"always" | "never">("never");
@@ -112,37 +107,36 @@ export function useSyncSettings({
 
   const canControlLocalSync = canControlLocalSyncCapability();
 
-  const candidates = useMemo(
+  const targets = useMemo(
     () =>
-      buildSyncCandidates({
+      buildSyncTargets({
         apiKey,
-        localPeer: desktopStatus?.peer ?? buildLocalSyncPeer(),
+        desktopStatus,
+        storedPeers,
       }),
-    [apiKey, desktopStatus],
+    [apiKey, desktopStatus, storedPeers],
   );
 
-  const [optionStates, setOptionStates] = useState<Record<SyncTargetSource, SyncOptionState>>(() =>
-    buildInitialOptionStates(candidates),
-  );
+  const [optionStates, setOptionStates] = useState<SyncOptionState[]>(() => buildInitialOptionStates(targets));
   const [resolvedPeer, setResolvedPeer] = useState<ResolvedSyncPeer>(() => ({
-    requestedMode: mode,
+    selectedTargetId,
     activeSource: "none",
     peer: null,
     detail: "Resolving sync peer availability…",
     warning: null,
   }));
 
-  const setMode = useCallback((nextMode: SyncMode) => {
+  const setSelectedTargetId = useCallback((nextTargetId: string) => {
     setSyncWhen("never");
     setIsResolvingPeer(true);
     setResolvedPeer({
-      requestedMode: nextMode,
+      selectedTargetId: nextTargetId,
       activeSource: "none",
       peer: null,
       detail: "Resolving sync peer availability…",
       warning: null,
     });
-    setStoredMode(nextMode);
+    setStoredSelectedTargetId(nextTargetId);
   }, []);
 
   const requestReprobe = useCallback(() => {
@@ -150,14 +144,22 @@ export function useSyncSettings({
   }, []);
 
   useEffect(() => {
-    writeStoredSyncMode(mode);
-  }, [mode]);
+    writeSelectedSyncTargetId(selectedTargetId);
+  }, [selectedTargetId]);
 
   useEffect(() => {
-    if (mode === "cloud") {
+    writeStoredSyncPeers(storedPeers);
+  }, [storedPeers]);
+
+  useEffect(() => {
+    if (targets.some((target) => target.id === selectedTargetId)) {
       return;
     }
 
+    setStoredSelectedTargetId(DEFAULT_SELECTED_SYNC_TARGET_ID);
+  }, [selectedTargetId, targets]);
+
+  useEffect(() => {
     const intervalId = window.setInterval(() => {
       requestReprobe();
     }, SYNC_REPROBE_INTERVAL_MS);
@@ -174,7 +176,7 @@ export function useSyncSettings({
       window.removeEventListener("focus", handleWindowFocus);
       window.removeEventListener("online", handleWindowFocus);
     };
-  }, [mode, requestReprobe]);
+  }, [requestReprobe]);
 
   const refreshDesktopStatus = useCallback(async () => {
     if (!canControlLocalSync || !window.desktopShell) {
@@ -243,6 +245,14 @@ export function useSyncSettings({
     [canControlLocalSync],
   );
 
+  const setDesktopAdvertisedHostnames = useCallback(async (hostnames: string[]) => {
+    if (!window.desktopShell) {
+      return;
+    }
+
+    await runDesktopAction(() => window.desktopShell!.sync.setAdvertisedHostnames(hostnames));
+  }, [runDesktopAction]);
+
   const startLocalSync = useCallback(async () => {
     if (!window.desktopShell) {
       return;
@@ -259,30 +269,52 @@ export function useSyncSettings({
     setSyncWhen("never");
     setIsResolvingPeer(true);
     setResolvedPeer({
-      requestedMode: mode,
+      selectedTargetId,
       activeSource: "none",
       peer: null,
       detail: "Disconnecting from local desktop sync…",
       warning: null,
     });
     await runDesktopAction(() => window.desktopShell!.sync.stopLocalServer());
-  }, [mode, runDesktopAction]);
+  }, [runDesktopAction, selectedTargetId]);
+
+  const addStoredPeer = useCallback((peer: string, label?: string | null) => {
+    const nextPeer = createStoredSyncPeer(peer, label);
+    if (!nextPeer) {
+      setActionError("Enter a valid ws:// or wss:// peer URL.");
+      return false;
+    }
+
+    if (storedPeers.some((entry) => entry.peer === nextPeer.peer)) {
+      setActionError("That peer URL is already saved.");
+      return false;
+    }
+
+    setStoredPeers((current) => [...current, nextPeer]);
+    setActionError(null);
+    setIsResolvingPeer(true);
+    return true;
+  }, [storedPeers]);
+
+  const removeStoredPeer = useCallback((peerId: string) => {
+    setStoredPeers((current) => current.filter((peer) => peer.id !== peerId));
+    if (selectedTargetId === peerId) {
+      setSelectedTargetId(DEFAULT_SELECTED_SYNC_TARGET_ID);
+    }
+  }, [selectedTargetId, setSelectedTargetId]);
 
   useEffect(() => {
     let active = true;
-    const nextOptionStates = buildInitialOptionStates(candidates);
+    const nextOptionStates = buildInitialOptionStates(targets);
 
     void Promise.all(
-      (Object.keys(candidates) as SyncTargetSource[]).map(async (source) => {
-        const candidate = candidates[source];
-        const availability = await probePeerAvailability(candidate.peer);
+      targets.map(async (target) => {
+        const availability = await probePeerAvailability(target.peer);
         return {
-          source,
+          id: target.id,
           state: {
-            source,
-            peer: candidate.peer,
+            ...target,
             availability,
-            note: candidate.note,
           } satisfies SyncOptionState,
         };
       }),
@@ -291,35 +323,38 @@ export function useSyncSettings({
         return;
       }
 
-      const resolvedOptionStates = results.reduce<Record<SyncTargetSource, SyncOptionState>>(
+      const resolvedOptionStates = results.reduce<SyncOptionState[]>(
         (acc, entry) => {
-          acc[entry.source] = entry.state;
+          const existingIndex = acc.findIndex((option) => option.id === entry.id);
+          if (existingIndex === -1) {
+            acc.push(entry.state);
+            return acc;
+          }
+          acc[existingIndex] = entry.state;
           return acc;
         },
-        { ...nextOptionStates },
+        [...nextOptionStates],
       );
+      const optionStatesById = Object.fromEntries(
+        resolvedOptionStates.map((option) => [option.id, option]),
+      ) as Record<string, SyncOptionState>;
 
-      const selectedSource =
-        syncCandidateOrder(mode).find(
-          (source) => resolvedOptionStates[source].availability === "available",
-        ) ?? null;
       const nextResolvedPeer = resolveSyncPeerResult({
-        mode,
-        selectedSource,
-        optionStates: resolvedOptionStates,
+        selectedTargetId,
+        optionStatesById,
       });
-      const nextSyncWhen = selectedSource ? "always" : "never";
+      const nextSyncWhen = nextResolvedPeer.peer ? "always" : "never";
       const shouldApplyResolvedState =
         isResolvingPeer ||
         nextSyncWhen !== syncWhen ||
-        nextResolvedPeer.requestedMode !== resolvedPeer.requestedMode ||
+        nextResolvedPeer.selectedTargetId !== resolvedPeer.selectedTargetId ||
         nextResolvedPeer.activeSource !== resolvedPeer.activeSource ||
         nextResolvedPeer.peer !== resolvedPeer.peer ||
         nextResolvedPeer.detail !== resolvedPeer.detail ||
         nextResolvedPeer.warning !== resolvedPeer.warning;
 
+      setOptionStates(resolvedOptionStates);
       if (shouldApplyResolvedState) {
-        setOptionStates(resolvedOptionStates);
         setResolvedPeer(nextResolvedPeer);
         setSyncWhen(nextSyncWhen);
       }
@@ -331,12 +366,13 @@ export function useSyncSettings({
     return () => {
       active = false;
     };
-  }, [candidates, isResolvingPeer, mode, probeCycle, resolvedPeer, syncWhen]);
+  }, [isResolvingPeer, probeCycle, resolvedPeer, selectedTargetId, syncWhen, targets]);
 
   return {
-    mode,
-    setMode,
+    selectedTargetId,
+    setSelectedTargetId,
     desktopStatus,
+    storedPeers,
     actionPending,
     actionError,
     canControlLocalSync,
@@ -344,6 +380,9 @@ export function useSyncSettings({
     isResolvingPeer,
     optionStates,
     resolvedPeer,
+    addStoredPeer,
+    removeStoredPeer,
+    setDesktopAdvertisedHostnames,
     refreshDesktopStatus,
     startLocalSync,
     stopLocalSync,

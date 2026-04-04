@@ -11,6 +11,7 @@ declare global {
         getStatus(): Promise<DesktopSyncStatus>;
         startLocalServer(): Promise<DesktopSyncStatus>;
         stopLocalServer(): Promise<DesktopSyncStatus>;
+        setAdvertisedHostnames(hostnames: string[]): Promise<DesktopSyncStatus>;
         onStatusChange(listener: (status: DesktopSyncStatus) => void): () => void;
       };
     };

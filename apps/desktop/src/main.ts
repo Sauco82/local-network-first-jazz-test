@@ -8,6 +8,7 @@ const DESKTOP_SYNC_STATUS_CHANNEL = "desktop-sync:status-changed";
 const DESKTOP_SYNC_GET_STATUS_CHANNEL = "desktop-sync:get-status";
 const DESKTOP_SYNC_START_CHANNEL = "desktop-sync:start";
 const DESKTOP_SYNC_STOP_CHANNEL = "desktop-sync:stop";
+const DESKTOP_SYNC_SET_HOSTNAMES_CHANNEL = "desktop-sync:set-advertised-hostnames";
 
 const desktopSync = new DesktopSyncService();
 
@@ -60,6 +61,11 @@ function registerDesktopSyncIpc() {
     broadcastDesktopSyncStatus();
     return status;
   });
+  ipcMain.handle(DESKTOP_SYNC_SET_HOSTNAMES_CHANNEL, (_event, hostnames: string[]) => {
+    const status = desktopSync.updateAdvertisedHostnames(hostnames);
+    broadcastDesktopSyncStatus();
+    return status;
+  });
 }
 
 app.whenReady().then(() => {
@@ -81,4 +87,5 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   void desktopSync.stop();
+  desktopSync.destroy();
 });
