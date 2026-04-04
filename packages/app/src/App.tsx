@@ -5,6 +5,28 @@ import type { AppRuntime } from "./runtime";
 import { UserDevicesWorkspace, UserDevicesWorkspaceLoading } from "./UserDevicesWorkspace";
 import { useSyncSettings } from "./useSyncSettings";
 
+function AppRoutes({
+  apiKey,
+  runtime,
+  syncState,
+}: {
+  apiKey?: string;
+  runtime: AppRuntime;
+  syncState?: ReturnType<typeof useSyncSettings>;
+}) {
+  return (
+    <HashRouter>
+      <Routes>
+        <Route
+          path="/"
+          element={<UserDevicesWorkspace apiKey={apiKey} runtime={runtime} syncState={syncState} />}
+        />
+        <Route path="/game/:gameId" element={<GamePage runtime={runtime} />} />
+      </Routes>
+    </HashRouter>
+  );
+}
+
 export function App({
   apiKey,
   runtime,
@@ -12,6 +34,14 @@ export function App({
   apiKey?: string;
   runtime: AppRuntime;
 }) {
+  if (runtime === "web") {
+    return (
+      <JazzAppProvider apiKey={apiKey}>
+        <AppRoutes apiKey={apiKey} runtime={runtime} />
+      </JazzAppProvider>
+    );
+  }
+
   const syncState = useSyncSettings({ apiKey });
   const providerKey = syncState.resolvedPeer.peer ?? "none";
   const isJazzReady =
@@ -36,21 +66,7 @@ export function App({
       peer={syncState.resolvedPeer.peer ?? undefined}
       syncWhen={syncState.syncWhen}
     >
-      <HashRouter>
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <UserDevicesWorkspace
-                apiKey={apiKey}
-                runtime={runtime}
-                syncState={syncState}
-              />
-            }
-          />
-          <Route path="/game/:gameId" element={<GamePage runtime={runtime} />} />
-        </Routes>
-      </HashRouter>
+      <AppRoutes apiKey={apiKey} runtime={runtime} syncState={syncState} />
     </JazzAppProvider>
   );
 }

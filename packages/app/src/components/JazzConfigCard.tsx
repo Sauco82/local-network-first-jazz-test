@@ -90,12 +90,6 @@ export function JazzConfigCard({
             <p className="text-amber-800">{syncState.resolvedPeer.warning}</p>
           ) : null}
           {syncState.isResolvingPeer ? <p className="text-slate-500">Checking configured peer availability…</p> : null}
-          {!syncState.canControlLocalSync ? (
-            <p className="text-slate-500">
-              Browser clients can probe saved peer URLs, but only the desktop app can host local sync or manage
-              advertised `.local` hostnames.
-            </p>
-          ) : null}
         </div>
         <div className="grid gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2">
           <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Saved peer URLs</p>

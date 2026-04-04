@@ -1,5 +1,10 @@
 import { useMemo, type ReactNode } from "react";
-import { assertLoaded, getLoadedOrUndefined, resolveJazzApiKey, useDeviceAccount } from "@repo/jazz";
+import {
+  assertLoaded,
+  getLoadedOrUndefined,
+  resolveJazzApiKey,
+  useDeviceAccount,
+} from "@repo/jazz";
 import { AppShell, Badge, Card } from "@repo/ui";
 import { CreateSharedUserDataPrompt } from "./components/CreateSharedUserDataPrompt";
 import { DeviceNameSection } from "./components/DeviceNameSection";
@@ -24,7 +29,7 @@ function UserDevicesWorkspaceLayout({
 }: {
   apiKey?: string;
   runtime: AppRuntime;
-  syncState: SyncSettingsState;
+  syncState?: SyncSettingsState;
   statusTone: "success" | "warning";
   statusLabel: string;
   mainContent: ReactNode;
@@ -32,14 +37,25 @@ function UserDevicesWorkspaceLayout({
 }) {
   const effectiveApiKey = useMemo(() => resolveJazzApiKey(apiKey), [apiKey]);
   const runtimeLabel = runtime === "desktop" ? "Desktop" : "Web";
+  const eyebrow = runtime === "desktop" ? "Local-first desktop" : "Shared user";
+  const subtitle =
+    runtime === "desktop"
+      ? "Create or join a Jazz group, link devices, and invite others. Desktop adds local sync hosting and peer configuration."
+      : "Create or join a Jazz group, link devices, and invite others.";
 
   return (
     <AppShell
-      eyebrow="Local-first user"
+      eyebrow={eyebrow}
       title="Shared user data across your devices."
-      subtitle="Create or join a Jazz group, link devices, and invite others. Sync uses an explicitly selected cloud or saved peer URL."
+      subtitle={subtitle}
     >
-      <section className="grid gap-3 md:grid-cols-[1fr_minmax(200px,280px)]">
+      <section
+        className={
+          syncState
+            ? "grid gap-3 md:grid-cols-[1fr_minmax(200px,280px)]"
+            : "grid gap-3"
+        }
+      >
         <Card>
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge>{runtimeLabel}</Badge>
@@ -49,13 +65,15 @@ function UserDevicesWorkspaceLayout({
           <div className="mt-3 grid gap-3">{mainContent}</div>
         </Card>
 
-        <div className="min-w-0">
-          <JazzConfigCard
-            effectiveApiKey={effectiveApiKey}
-            account={account}
-            syncState={syncState}
-          />
-        </div>
+        {syncState ? (
+          <div className="min-w-0">
+            <JazzConfigCard
+              effectiveApiKey={effectiveApiKey}
+              account={account}
+              syncState={syncState}
+            />
+          </div>
+        ) : null}
       </section>
     </AppShell>
   );
@@ -68,7 +86,7 @@ export function UserDevicesWorkspace({
 }: {
   apiKey?: string;
   runtime: AppRuntime;
-  syncState: SyncSettingsState;
+  syncState?: SyncSettingsState;
 }) {
   const account = useDeviceAccount();
 
@@ -99,14 +117,24 @@ export function UserDevicesWorkspace({
           </div>
         ) : (
           <>
-            <DeviceNameSection key={account.$jazz.id} account={account} runtime={runtime} />
+            <DeviceNameSection
+              key={account.$jazz.id}
+              account={account}
+              runtime={runtime}
+            />
 
-            {!shared ? <CreateSharedUserDataPrompt account={account} runtime={runtime} /> : null}
+            {!shared ? (
+              <CreateSharedUserDataPrompt account={account} runtime={runtime} />
+            ) : null}
 
             {shared ? (
               <>
                 <EnsureCurrentDeviceInSharedList shared={shared} />
-                <GroupNameSection key={shared.$jazz.id} shared={shared} runtime={runtime} />
+                <GroupNameSection
+                  key={shared.$jazz.id}
+                  shared={shared}
+                  runtime={runtime}
+                />
                 <DevicesListSection account={account} shared={shared} />
                 <GamesSection shared={shared} />
               </>
@@ -132,7 +160,10 @@ export function UserDevicesWorkspaceLoading({
   runtime: AppRuntime;
   syncState: SyncSettingsState;
 }) {
-  const detail = syncState.actionError ?? syncState.resolvedPeer.warning ?? syncState.resolvedPeer.detail;
+  const detail =
+    syncState.actionError ??
+    syncState.resolvedPeer.warning ??
+    syncState.resolvedPeer.detail;
 
   return (
     <UserDevicesWorkspaceLayout
